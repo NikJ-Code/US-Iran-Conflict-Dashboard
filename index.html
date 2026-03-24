@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 US–Iran Conflict Dashboard</title>
+<meta name="description" content="Live conflict map, news, and market data for the 2026 US-Iran war.">
+<style>
+  body {
+    margin: 0;
+    background: #070a0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: -apple-system, sans-serif;
+    color: #64748b;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <span>Redirecting…</span>
+  <script>
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+                     (navigator.maxTouchPoints > 1 && window.innerWidth < 768);
+
+    if (isMobile) {
+      window.location.replace('iran_conflict_mobile.html');
+    } else {
+      window.location.replace('iran_conflict_dashboard.html');
+    }
+  </script>
+</body>
+</html>
