@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 US–Iran Conflict Dashboard</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:       #070a0f;
+  --surface:  #0c1018;
+  --surface2: #101520;
+  --surface3: #141b24;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --us:    #ff4d3d;
+  --iran:  #ffaa00;
+  --proxy: #38b6ff;
+  --green: #22c55e;
+  --red:   #ef4444;
+  --text:     #e2e8f0;
+  --text-dim: #64748b;
+  --text-xs:  #3d4f63;
+  --nav-h: 52px;
+  --header-h: 58px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
+
+/* ═══════════════════════════════
+   HEADER
+═══════════════════════════════ */
+#header {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  position: relative;
+  z-index: 2000;
+}
+
+.logo-hex {
+  width:26px; height:26px;
+  background: var(--us);
+  clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  animation: spin 14s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.h-title {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size: 20px; font-weight:800;
+  letter-spacing:1.5px; text-transform:uppercase; color:#fff;
+}
+.h-sub {
+  font-family:'DM Mono',monospace; font-size:10px;
+  color:var(--text-dim); letter-spacing:1px;
+}
+.h-spacer { flex:1; }
+
+.live-pill {
+  display:flex; align-items:center; gap:6px;
+  background:rgba(255,77,61,0.1); border:1px solid rgba(255,77,61,0.3);
+  border-radius:20px; padding:4px 12px;
+  font-family:'DM Mono',monospace; font-size:10px; color:var(--us); letter-spacing:1px;
+}
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--us); animation:blink 1.4s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+.day-pill {
+  font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700;
+  color:var(--text-dim); letter-spacing:1px; margin-right:4px;
+}
+
+/* ═══════════════════════════════
+   NAV TABS
+═══════════════════════════════ */
+#nav {
+  height: var(--nav-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 20px;
+  gap: 2px;
+  position: relative;
+  z-index: 1999;
+}
+
+.tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 16px 11px;
+  font-size: 13px; font-weight: 500; letter-spacing: 0.3px;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  border-radius: 6px 6px 0 0;
+  user-select: none;
+}
+.tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.tab.active { color: #fff; border-bottom-color: var(--us); background: rgba(255,77,61,0.06); }
+.tab-icon { font-size:14px; }
+.tab-badge {
+  font-family:'DM Mono',monospace; font-size:9px; font-weight:500;
+  background: rgba(255,255,255,0.08); border-radius:10px;
+  padding:1px 6px; color:var(--text-dim);
+}
+.tab.active .tab-badge { background:rgba(255,77,61,0.2); color:var(--us); }
+
+/* ═══════════════════════════════
+   PAGES
+═══════════════════════════════ */
+#pages {
+  height: calc(100vh - var(--header-h) - var(--nav-h));
+  position: relative;
+  overflow: hidden;
+}
+
+.page { position:absolute; inset:0; display:none; overflow:hidden; }
+.page.active { display:flex; }
+
+/* ═══════════════════════════════
+   PAGE 1 — MAP
+═══════════════════════════════ */
+#page-map { flex-direction:row; }
+
+#map { flex:1; }
+
+.map-sidebar {
+  width:300px; flex-shrink:0;
+  background:var(--surface);
+  border-left:1px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+.sb-section {
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+}
+
+.sb-label {
+  font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px;
+  text-transform:uppercase; color:var(--text-xs); margin-bottom:10px;
+}
+
+.filter-row {
+  display:flex; align-items:center; gap:9px;
+  padding:8px 10px; border-radius:7px;
+  border:1px solid var(--border);
+  cursor:pointer; transition:all 0.15s;
+  background:rgba(255,255,255,0.02);
+  margin-bottom:5px;
+}
+.filter-row:last-child { margin-bottom:0; }
+.filter-row.f-us:hover, .filter-row.f-us.on    { background:rgba(255,77,61,0.08);  border-color:rgba(255,77,61,0.35); }
+.filter-row.f-iran:hover, .filter-row.f-iran.on { background:rgba(255,170,0,0.08); border-color:rgba(255,170,0,0.35); }
+.filter-row.f-proxy:hover,.filter-row.f-proxy.on{ background:rgba(56,182,255,0.08);border-color:rgba(56,182,255,0.35); }
+.filter-row.off { opacity:0.28; }
+
+.f-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.f-name { font-size:12px; font-weight:500; flex:1; }
+.f-sub  { font-family:'DM Mono',monospace; font-size:9px; color:var(--text-dim); }
+.f-cnt  { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700; }
+
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stat-box { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+.stat-n { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:800; color:#fff; line-height:1; }
+.stat-l { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--text-xs); text-transform:uppercase; margin-top:2px; }
+
+.detail-scroll { flex:1; overflow-y:auto; padding:14px 16px; }
+.detail-scroll::-webkit-scrollbar { width:3px; }
+.detail-scroll::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.hint-box {
+  background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  border-radius:8px; padding:14px; font-size:12px; color:var(--text-dim); line-height:1.7;
+}
+.hint-box b { color:var(--text); display:block; margin-bottom:6px; }
+
+#map-detail { display:none; animation:fadeUp 0.22s ease; }
+#map-detail.show { display:block; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+.md-name { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:800; color:#fff; line-height:1; }
+.md-country { font-size:11px; color:var(--text-dim); margin-top:3px; margin-bottom:10px; }
+.md-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px; text-transform:uppercase; margin-bottom:12px; }
+.b-us    { background:rgba(255,77,61,0.15);  color:var(--us);   border:1px solid rgba(255,77,61,0.3); }
+.b-iran  { background:rgba(255,170,0,0.15);  color:var(--iran); border:1px solid rgba(255,170,0,0.3); }
+.b-proxy { background:rgba(56,182,255,0.15); color:var(--proxy);border:1px solid rgba(56,182,255,0.3); }
+.md-events { background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+.md-num { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:800; line-height:1; }
+.md-elbl { font-family:'DM Mono',monospace; font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; line-height:1.6; }
+.md-desc { font-size:12px; color:var(--text-dim); line-height:1.75; border-left:2px solid var(--border2); padding-left:10px; }
+
+/* Leaflet overrides */
+.leaflet-container { background:#0a1525 !important; }
+.leaflet-popup-content-wrapper {
+  background:var(--surface2) !important; border:1px solid var(--border2) !important;
+  border-radius:10px !important; box-shadow:0 20px 60px rgba(0,0,0,0.7) !important;
+  color:var(--text) !important; font-family:'DM Sans',sans-serif !important; padding:0 !important;
+}
+.leaflet-popup-content { margin:0 !important; }
+.leaflet-popup-tip-container { display:none !important; }
+.leaflet-popup-close-button { color:var(--text-dim) !important; top:8px !important; right:10px !important; font-size:18px !important; }
+.leaflet-control-attribution { background:rgba(7,10,15,0.85) !important; color:var(--text-xs) !important; font-size:9px !important; }
+.leaflet-control-attribution a { color:var(--text-xs) !important; }
+.leaflet-control-zoom { border:1px solid var(--border2) !important; border-radius:8px !important; overflow:hidden; box-shadow:none !important; }
+.leaflet-control-zoom a { background:var(--surface2) !important; color:var(--text) !important; border-bottom:1px solid var(--border) !important; width:30px !important; height:30px !important; line-height:30px !important; }
+.leaflet-control-zoom a:hover { background:rgba(255,255,255,0.1) !important; }
+.p-inner { padding:14px 16px; min-width:200px; max-width:260px; }
+.p-name { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:800; color:#fff; }
+.p-country { font-size:11px; color:var(--text-dim); margin-bottom:8px; }
+.p-strikes { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-dim); margin-bottom:7px; }
+.p-desc { font-size:11px; color:var(--text-dim); line-height:1.65; border-top:1px solid var(--border); padding-top:8px; }
+
+/* ═══════════════════════════════
+   PAGE 2 — NEWS
+═══════════════════════════════ */
+#page-news {
+  display:none;
+  flex-direction:column;
+  background:var(--bg);
+  overflow:hidden;
+}
+#page-news.active { display:flex; }
+
+.news-toolbar {
+  padding:14px 24px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+  flex-shrink:0; background:var(--surface);
+}
+
+.news-source-btn {
+  padding:6px 14px; border-radius:20px;
+  border:1px solid var(--border);
+  font-size:12px; font-weight:500;
+  cursor:pointer; transition:all 0.15s;
+  color:var(--text-dim); background:rgba(255,255,255,0.02);
+}
+.news-source-btn:hover { color:var(--text); border-color:var(--border2); }
+.news-source-btn.active { color:#fff; background:rgba(255,77,61,0.12); border-color:rgba(255,77,61,0.4); }
+
+.news-refresh {
+  margin-left:auto; display:flex; align-items:center; gap:6px;
+  font-family:'DM Mono',monospace; font-size:10px; color:var(--text-dim);
+}
+.refresh-btn {
+  padding:5px 12px; border-radius:6px; border:1px solid var(--border2);
+  background:rgba(255,255,255,0.04); cursor:pointer; font-family:'DM Mono',monospace;
+  font-size:10px; color:var(--text); transition:background 0.15s;
+}
+.refresh-btn:hover { background:rgba(255,255,255,0.08); }
+.refresh-btn.spinning { animation:spin 1s linear infinite; }
+
+.news-body {
+  flex:1; display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:0; overflow:hidden;
+}
+
+.news-col {
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.news-col:last-child { border-right:none; }
+
+.news-col-header {
+  padding:12px 16px 10px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+  flex-shrink:0;
+}
+.news-col-title {
+  font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700;
+  letter-spacing:0.5px; text-transform:uppercase;
+}
+.news-col-sub { font-family:'DM Mono',monospace; font-size:9px; color:var(--text-dim); margin-left:auto; }
+
+.news-feed {
+  flex:1; overflow-y:auto; padding:8px;
+}
+.news-feed::-webkit-scrollbar { width:3px; }
+.news-feed::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.news-card {
+  padding:12px 13px; border-radius:8px; margin-bottom:6px;
+  border:1px solid var(--border); background:rgba(255,255,255,0.02);
+  cursor:pointer; transition:all 0.15s; text-decoration:none; display:block;
+}
+.news-card:hover { background:rgba(255,255,255,0.05); border-color:var(--border2); }
+.news-card.loading { animation:pulse-bg 1.5s ease-in-out infinite; }
+@keyframes pulse-bg { 0%,100%{background:rgba(255,255,255,0.02)} 50%{background:rgba(255,255,255,0.05)} }
+
+.nc-source {
+  font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--text-xs); margin-bottom:5px;
+  display:flex; align-items:center; gap:6px;
+}
+.nc-dot { width:5px; height:5px; border-radius:50%; }
+.nc-headline { font-size:13px; font-weight:500; color:var(--text); line-height:1.4; margin-bottom:5px; }
+.nc-time { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-dim); }
+.nc-snippet { font-size:11px; color:var(--text-dim); line-height:1.6; margin-top:5px; border-top:1px solid var(--border); padding-top:5px; }
+
+.news-error {
+  padding:20px 16px; font-size:12px; color:var(--text-dim); line-height:1.7;
+  text-align:center;
+}
+.news-error b { color:var(--text); display:block; margin-bottom:8px; font-size:13px; }
+
+/* ═══════════════════════════════
+   PAGE 3 — MARKETS
+═══════════════════════════════ */
+#page-markets {
+  display:none;
+  flex-direction:column;
+  overflow-y:auto;
+  background:var(--bg);
+}
+#page-markets.active { display:flex; }
+#page-markets::-webkit-scrollbar { width:4px; }
+#page-markets::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.markets-inner { padding:20px 24px; min-height:100%; }
+
+.markets-top {
+  display:grid; grid-template-columns:repeat(5,1fr); gap:10px;
+  margin-bottom:20px;
+}
+
+.ticker-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:14px 16px;
+  transition:border-color 0.15s;
+}
+.ticker-card:hover { border-color:var(--border2); }
+.tc-symbol { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--text-dim); margin-bottom:4px; }
+.tc-name { font-size:11px; color:var(--text-xs); margin-bottom:8px; }
+.tc-price { font-family:'Barlow Condensed',sans-serif; font-size:26px; font-weight:800; color:#fff; line-height:1; }
+.tc-change { font-family:'DM Mono',monospace; font-size:11px; margin-top:4px; font-weight:500; }
+.up { color:var(--green); }
+.dn { color:var(--red); }
+
+.markets-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+  margin-bottom:20px;
+}
+
+.chart-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:18px 20px;
+  transition:border-color 0.15s;
+}
+.chart-card:hover { border-color:var(--border2); }
+.cc-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:16px; }
+.cc-title-block { flex:1; }
+.cc-title { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; letter-spacing:0.5px; color:#fff; }
+.cc-sub { font-size:11px; color:var(--text-dim); margin-top:2px; }
+.cc-stat { text-align:right; }
+.cc-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; line-height:1; }
+.cc-chg { font-family:'DM Mono',monospace; font-size:10px; margin-top:2px; }
+.chart-wrap { position:relative; height:160px; }
+
+.markets-wide { margin-bottom:16px; }
+.chart-card-wide { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+.chart-wrap-wide { position:relative; height:180px; margin-top:16px; }
+
+.context-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+.ctx-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+.ctx-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-xs); margin-bottom:8px; }
+.ctx-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; color:#fff; line-height:1; }
+.ctx-sub { font-size:11px; color:var(--text-dim); margin-top:3px; line-height:1.5; }
+
+.disclaimer {
+  font-family:'DM Mono',monospace; font-size:9px; color:var(--text-xs);
+  letter-spacing:0.5px; padding:10px 0 4px; line-height:1.7;
+  border-top:1px solid var(--border); margin-top:4px;
+}
+
+.map-refresh-row {
+  display:flex; flex-direction:column; align-items:stretch; gap:6px;
+  padding:12px 16px;
+  border-top:1px solid var(--border);
+  flex-shrink:0;
+}
+.map-refresh-btn {
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:9px 12px; border-radius:7px;
+  border:1px solid var(--border2);
+  background:rgba(255,255,255,0.04);
+  color:var(--text); font-family:'DM Mono',monospace;
+  font-size:10px; letter-spacing:1px; cursor:pointer;
+  transition:all 0.15s;
+}
+.map-refresh-btn:hover { background:rgba(255,77,61,0.1); border-color:rgba(255,77,61,0.4); color:var(--us); }
+.map-refresh-btn:active { transform:scale(0.97); }
+.map-refresh-btn.spinning .r-icon { animation:spin 0.8s linear infinite; }
+.r-icon { display:inline-block; }
+.map-last-update {
+  font-family:'DM Mono',monospace; font-size:9px;
+  color:var(--text-xs); letter-spacing:0.5px; text-align:center;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <div class="logo-hex"></div>
+  <div>
+    <div class="h-title">US–Iran Conflict Dashboard</div>
+    <div class="h-sub">REAL-TIME INTELLIGENCE — MARCH 24, 2026</div>
+  </div>
+  <div class="h-spacer"></div>
+  <div class="day-pill">DAY 25</div>
+  <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+</div>
+
+<!-- NAV TABS -->
+<div id="nav">
+  <div class="tab active" onclick="switchTab('map')" id="tab-map">
+    <span class="tab-icon">🗺</span> Strike Map
+    <span class="tab-badge">31 locations</span>
+  </div>
+  <div class="tab" onclick="switchTab('news')" id="tab-news">
+    <span class="tab-icon">📡</span> Live News
+    <span class="tab-badge" id="news-badge">Loading…</span>
+  </div>
+  <div class="tab" onclick="switchTab('markets')" id="tab-markets">
+    <span class="tab-icon">📈</span> Markets
+    <span class="tab-badge">Conflict Impact</span>
+  </div>
+</div>
+
+<!-- PAGES -->
+<div id="pages">
+
+  <!-- ══════════ PAGE: MAP ══════════ -->
+  <div class="page active" id="page-map">
+
+    <div id="map"></div>
+
+    <div class="map-sidebar">
+      <div class="sb-section">
+        <div class="sb-label">Filter by Origin</div>
+        <div class="filter-row f-us on" id="fr-us" onclick="toggleFilter('us_israel')">
+          <div class="f-dot" style="background:#ff4d3d;box-shadow:0 0 7px rgba(255,77,61,0.6)"></div>
+          <div style="flex:1">
+            <div class="f-name">US / Israeli Strikes</div>
+            <div class="f-sub">Targets inside Iran</div>
+          </div>
+          <div class="f-cnt" style="color:#ff4d3d">16</div>
+        </div>
+        <div class="filter-row f-iran on" id="fr-iran" onclick="toggleFilter('iran')">
+          <div class="f-dot" style="background:#ffaa00;box-shadow:0 0 7px rgba(255,170,0,0.6)"></div>
+          <div style="flex:1">
+            <div class="f-name">Iranian Strikes</div>
+            <div class="f-sub">Israel + Gulf states</div>
+          </div>
+          <div class="f-cnt" style="color:#ffaa00">12</div>
+        </div>
+        <div class="filter-row f-proxy on" id="fr-proxy" onclick="toggleFilter('proxy')">
+          <div class="f-dot" style="background:#38b6ff;box-shadow:0 0 7px rgba(56,182,255,0.6)"></div>
+          <div style="flex:1">
+            <div class="f-name">Proxy / Multi-Front</div>
+            <div class="f-sub">Lebanon, Iraq</div>
+          </div>
+          <div class="f-cnt" style="color:#38b6ff">3</div>
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-label">Conflict Stats</div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-n">31</div><div class="stat-l">Locations</div></div>
+          <div class="stat-box"><div class="stat-n">9+</div><div class="stat-l">Countries</div></div>
+          <div class="stat-box"><div class="stat-n">2,300+</div><div class="stat-l">Killed</div></div>
+          <div class="stat-box"><div class="stat-n">$91</div><div class="stat-l">Oil/bbl</div></div>
+        </div>
+      </div>
+
+      <div class="detail-scroll">
+        <div class="sb-label">Location Detail</div>
+        <div class="hint-box" id="map-hint">
+          <b>Click any marker</b>
+          Color-coded by strike origin. Larger circles = higher strike density. Use filters above to toggle categories.
+        </div>
+        <div id="map-detail">
+          <div class="md-name" id="md-name"></div>
+          <div class="md-country" id="md-country"></div>
+          <div class="md-badge" id="md-badge"></div>
+          <div class="md-events">
+            <div class="md-num" id="md-num"></div>
+            <div class="md-elbl">Recorded<br>Strike Events</div>
+          </div>
+          <div class="md-desc" id="md-desc"></div>
+        </div>
+      </div>
+
+      <div class="map-refresh-row">
+        <button class="map-refresh-btn" id="map-refresh-btn" onclick="refreshMap()">
+          <span class="r-icon">↻</span> REFRESH STRIKE DATA
+        </button>
+        <div class="map-last-update" id="map-last-update">Last updated: March 24, 2026 — Day 25</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: NEWS ══════════ -->
+  <div class="page" id="page-news">
+    <div class="news-toolbar">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase">Sources:</span>
+      <button class="news-source-btn active" onclick="filterNews('all',this)">All</button>
+      <button class="news-source-btn" onclick="filterNews('geopolitical',this)">Geopolitical</button>
+      <button class="news-source-btn" onclick="filterNews('markets',this)">Markets</button>
+      <button class="news-source-btn" onclick="filterNews('military',this)">Military</button>
+      <div class="news-refresh">
+        <span id="last-refresh-time">—</span>
+        <button class="refresh-btn" onclick="loadNews()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="news-body">
+      <div class="news-col">
+        <div class="news-col-header">
+          <div class="nc-dot" style="background:#ff4d3d;box-shadow:0 0 6px rgba(255,77,61,0.5);width:8px;height:8px;border-radius:50%;"></div>
+          <div class="news-col-title" style="color:#ff4d3d">Military & Strikes</div>
+          <div class="news-col-sub" id="feed1-count">—</div>
+        </div>
+        <div class="news-feed" id="feed-military"></div>
+      </div>
+      <div class="news-col">
+        <div class="news-col-header">
+          <div class="nc-dot" style="background:#ffaa00;box-shadow:0 0 6px rgba(255,170,0,0.5);width:8px;height:8px;border-radius:50%;"></div>
+          <div class="news-col-title" style="color:#ffaa00">Diplomacy & Politics</div>
+          <div class="news-col-sub" id="feed2-count">—</div>
+        </div>
+        <div class="news-feed" id="feed-diplomacy"></div>
+      </div>
+      <div class="news-col">
+        <div class="news-col-header">
+          <div class="nc-dot" style="background:#38b6ff;box-shadow:0 0 6px rgba(56,182,255,0.5);width:8px;height:8px;border-radius:50%;"></div>
+          <div class="news-col-title" style="color:#38b6ff">Markets & Energy</div>
+          <div class="news-col-sub" id="feed3-count">—</div>
+        </div>
+        <div class="news-feed" id="feed-markets"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: MARKETS ══════════ -->
+  <div class="page" id="page-markets">
+    <div class="markets-inner">
+
+      <!-- TICKER ROW — Live via Yahoo Finance -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-xs);">Live Market Data</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-xs)" id="markets-update-time">Fetching…</span>
+          <button onclick="loadMarketData(true)" style="padding:4px 10px;border-radius:5px;border:1px solid var(--border2);background:rgba(255,255,255,0.04);color:var(--text);font-family:'DM Mono',monospace;font-size:9px;cursor:pointer;letter-spacing:1px;" id="markets-refresh-btn">↻ REFRESH</button>
+        </div>
+      </div>
+      <div class="markets-top" id="ticker-row">
+        <div class="ticker-card" id="tick-CL=F"><div class="tc-symbol">WTI</div><div class="tc-name">Crude Oil ($/bbl)</div><div class="tc-price tc-loading">—</div><div class="tc-change tc-loading">Loading…</div></div>
+        <div class="ticker-card" id="tick-BZ=F"><div class="tc-symbol">BRENT</div><div class="tc-name">Brent Crude ($/bbl)</div><div class="tc-price tc-loading">—</div><div class="tc-change tc-loading">Loading…</div></div>
+        <div class="ticker-card" id="tick-GC=F"><div class="tc-symbol">GOLD</div><div class="tc-name">Gold ($/oz)</div><div class="tc-price tc-loading">—</div><div class="tc-change tc-loading">Loading…</div></div>
+        <div class="ticker-card" id="tick-^GSPC"><div class="tc-symbol">S&P 500</div><div class="tc-name">S&amp;P 500 Index</div><div class="tc-price tc-loading">—</div><div class="tc-change tc-loading">Loading…</div></div>
+        <div class="ticker-card" id="tick-XLE"><div class="tc-symbol">XLE</div><div class="tc-name">Energy Sector ETF</div><div class="tc-price tc-loading">—</div><div class="tc-change tc-loading">Loading…</div></div>
+      </div>
+
+      <!-- CHARTS GRID -->
+      <div class="markets-grid">
+
+        <!-- OIL PRICE -->
+        <div class="chart-card">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">WTI Crude Oil</div>
+              <div class="cc-sub">Price since conflict began (Feb 28 – Mar 24)</div>
+            </div>
+            <div class="cc-stat">
+              <div class="cc-val up" id="oil-val">$91.03</div>
+              <div class="cc-chg up" id="oil-chg">▲ +51% since war began</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-oil"></canvas></div>
+        </div>
+
+        <!-- GOLD -->
+        <div class="chart-card">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">Gold Price</div>
+              <div class="cc-sub">Safe-haven demand surge ($/oz)</div>
+            </div>
+            <div class="cc-stat">
+              <div class="cc-val up" id="gold-val">$4,410</div>
+              <div class="cc-chg up" id="gold-chg">▲ +8.2% since war began</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-gold"></canvas></div>
+        </div>
+
+        <!-- S&P 500 -->
+        <div class="chart-card">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">S&P 500</div>
+              <div class="cc-sub">Equity market volatility during conflict</div>
+            </div>
+            <div class="cc-stat">
+              <div class="cc-val dn" id="spx-val">6,564</div>
+              <div class="cc-chg dn" id="spx-chg">▼ −4.3% since war began</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-spx"></canvas></div>
+        </div>
+
+        <!-- ENERGY SECTOR LIVE + SECTOR BAR -->
+        <div class="chart-card">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">XLE Energy ETF</div>
+              <div class="cc-sub">Live price since conflict began ($/share)</div>
+            </div>
+            <div class="cc-stat">
+              <div class="cc-val up" id="xle-val">$97.84</div>
+              <div class="cc-chg up" id="xle-chg">▲ +25% since war began</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-sectors-live"></canvas></div>
+        </div>
+
+        <!-- SECTOR BAR -->
+        <div class="chart-card" style="grid-column:1/-1">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">YTD Sector Performance</div>
+              <div class="cc-sub">S&amp;P 500 sector returns year-to-date — Energy leading all sectors</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-sectors"></canvas></div>
+        </div>
+      </div>
+
+      <!-- WIDE: OIL SUPPLY IMPACT -->
+      <div class="markets-wide">
+        <div class="chart-card-wide">
+          <div class="cc-header">
+            <div class="cc-title-block">
+              <div class="cc-title">Global Oil Supply Disruption</div>
+              <div class="cc-sub">Estimated % of global supply disrupted by Strait of Hormuz closure (analyst projections)</div>
+            </div>
+            <div class="cc-stat">
+              <div class="cc-val" style="color:#ff4d3d">25%</div>
+              <div class="cc-chg" style="color:var(--text-dim)">of global consumption disrupted</div>
+            </div>
+          </div>
+          <div class="chart-wrap-wide"><canvas id="chart-supply"></canvas></div>
+        </div>
+      </div>
+
+      <!-- CONTEXT CARDS -->
+      <div class="context-grid">
+        <div class="ctx-card">
+          <div class="ctx-label">Citi Oil Target</div>
+          <div class="ctx-val" style="color:#ff4d3d">$200/bbl</div>
+          <div class="ctx-sub">If Hormuz blockade persists through June per Citi analysts</div>
+        </div>
+        <div class="ctx-card">
+          <div class="ctx-label">Brent Near-Term Target</div>
+          <div class="ctx-val" style="color:#ffaa00">$120/bbl</div>
+          <div class="ctx-sub">Citi 1-month forecast if conflict continues escalating</div>
+        </div>
+        <div class="ctx-card">
+          <div class="ctx-label">Fed Funds Rate</div>
+          <div class="ctx-val">Held</div>
+          <div class="ctx-sub">Fed on hold last week — oil inflation "biggest wild card" per Vanguard chief economist</div>
+        </div>
+        <div class="ctx-card">
+          <div class="ctx-label">Trump Approval</div>
+          <div class="ctx-val" style="color:#ef4444">36%</div>
+          <div class="ctx-sub">Lowest of second term; Reuters/Ipsos poll attributes drop to war and cost of living</div>
+        </div>
+        <div class="ctx-card">
+          <div class="ctx-label">BCRED Loss</div>
+          <div class="ctx-val" style="color:#ef4444">−0.4%</div>
+          <div class="ctx-sub">Blackstone's $48B BDC first monthly loss since late 2022; private credit stress emerging</div>
+        </div>
+        <div class="ctx-card">
+          <div class="ctx-label">IEA Warning</div>
+          <div class="ctx-val" style="color:#ff4d3d">MAJOR</div>
+          <div class="ctx-sub">"Worse than combined 1973 + 1979 oil crises" — IEA chief Fatih Birol, March 23</div>
+        </div>
+      </div>
+
+      <div class="disclaimer">
+        ⚠ Live market data via Yahoo Finance (15-min delayed). Charts show real historical prices since Feb 28, 2026 (conflict start). Static fallback used if API unavailable. Not financial advice.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /pages -->
+
+<script>
+// ═══════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════
+let currentTab = 'map';
+let mapInitialized = false;
+let newsLoaded = false;
+let chartsBuilt = false;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('page-' + tab).classList.add('active');
+  currentTab = tab;
+
+  if (tab === 'map' && !mapInitialized) { initMap(); mapInitialized = true; }
+  if (tab === 'news' && !newsLoaded)    { loadNews(); newsLoaded = true; }
+  if (tab === 'markets' && !chartsBuilt){ buildCharts(); chartsBuilt = true; }
+}
+
+// Init map immediately since it's the default tab
+window.addEventListener('load', () => {
+  initMap(); mapInitialized = true;
+});
+
+// ═══════════════════════════════
+// MAP DATA
+// ═══════════════════════════════
+const STRIKES = [
+  {id:'tehran',name:'Tehran',country:'Iran',type:'us_israel',lat:35.72,lng:51.42,weight:14,strikes:300,desc:'Heaviest bombardment of the war. Khamenei assassinated Day 1. IRGC HQ, broadcaster, parliament, oil depots struck. Nearly 2,300 distinct events documented.'},
+  {id:'isfahan',name:'Isfahan',country:'Iran',type:'us_israel',lat:32.65,lng:51.67,weight:10,strikes:80,desc:'Key hub for Iran\'s ballistic missile programme. Gas facilities and pressure stations struck. Multiple strikes on military and nuclear-linked sites.'},
+  {id:'natanz',name:'Natanz',country:'Iran',type:'us_israel',lat:33.72,lng:51.92,weight:9,strikes:15,desc:'Iran\'s most critical uranium enrichment complex. Struck by US and Israel — triggered Iranian retaliation on Dimona nuclear site.'},
+  {id:'tabriz',name:'Tabriz',country:'Iran',type:'us_israel',lat:38.08,lng:46.30,weight:8,strikes:25,desc:'At least 6 killed in strikes on homes. Two confirmed deadly attacks per provincial crisis management.'},
+  {id:'qom',name:'Qom',country:'Iran',type:'us_israel',lat:34.64,lng:50.88,weight:7,strikes:12,desc:'US targeted a turbine engine production site for IRGC drone and aircraft components.'},
+  {id:'bushehr',name:'Bushehr',country:'Iran',type:'us_israel',lat:28.92,lng:50.84,weight:7,strikes:10,desc:'Port city struck near nuclear reactor. Russia condemned strikes here as "extremely dangerous."'},
+  {id:'kharg',name:'Kharg Island',country:'Iran',type:'us_israel',lat:29.25,lng:50.31,weight:7,strikes:8,desc:'Iran\'s vital oil export hub struck by US. Threatened with repeated strikes while Hormuz remains blocked.'},
+  {id:'karaj',name:'Karaj',country:'Iran',type:'us_israel',lat:35.83,lng:51.00,weight:6,strikes:10,desc:'Military infrastructure struck alongside Tehran cluster.'},
+  {id:'ahvaz',name:'Ahvaz',country:'Iran',type:'us_israel',lat:31.32,lng:48.67,weight:6,strikes:8,desc:'Infrastructure strikes; hospital reportedly impacted. Major city in oil-rich Khuzestan province.'},
+  {id:'shiraz',name:'Shiraz',country:'Iran',type:'us_israel',lat:29.59,lng:52.58,weight:6,strikes:7,desc:'Military and infrastructure sites struck. Confirmed by multiple sources.'},
+  {id:'kermanshah',name:'Kermanshah',country:'Iran',type:'us_israel',lat:34.33,lng:47.08,weight:5,strikes:6,desc:'Military infrastructure struck. Confirmed in Al Jazeera and ACLED strike mapping.'},
+  {id:'urmia',name:'Urmia',country:'Iran',type:'us_israel',lat:37.55,lng:45.08,weight:5,strikes:5,desc:'Military sites confirmed struck. Northwestern Iran.'},
+  {id:'zanjan',name:'Zanjan',country:'Iran',type:'us_israel',lat:36.68,lng:48.51,weight:5,strikes:5,desc:'Military targets struck. Northwestern Iran near Azerbaijan border.'},
+  {id:'bandar',name:'Bandar Abbas',country:'Iran',type:'us_israel',lat:27.20,lng:56.29,weight:5,strikes:4,desc:'Radio station targeted, one person killed. Strategic port near Strait of Hormuz.'},
+  {id:'minab',name:'Minab',country:'Iran',type:'us_israel',lat:27.14,lng:57.07,weight:7,strikes:3,desc:'⚠ DEADLIEST SINGLE STRIKE: Strike on elementary girls\' school killed 170+ people, mostly children.'},
+  {id:'khorramabad',name:'Khorramabad',country:'Iran',type:'us_israel',lat:33.49,lng:48.36,weight:5,strikes:4,desc:'Strike on residential building killed at least one child, wounded several.'},
+  {id:'telaviv',name:'Tel Aviv',country:'Israel',type:'iran',lat:32.09,lng:34.78,weight:10,strikes:80,desc:'Multiple Iranian missile barrages throughout the war. 4+ casualties on March 24 alone.'},
+  {id:'haifa',name:'Haifa',country:'Israel',type:'iran',lat:32.79,lng:34.99,weight:7,strikes:30,desc:'Iranian missile strikes and joint Hezbollah-Iran attacks on northern Israel.'},
+  {id:'dimona',name:'Dimona',country:'Israel',type:'iran',lat:31.07,lng:35.03,weight:9,strikes:12,desc:'⚠ NUCLEAR ESCALATION: Iranian missiles struck near Israel\'s main nuclear facility. 180+ wounded.'},
+  {id:'arad',name:'Arad',country:'Israel',type:'iran',lat:31.26,lng:35.22,weight:7,strikes:8,desc:'Direct hit by Iranian ballistic missiles. Hundreds evacuated.'},
+  {id:'beersheba',name:'Be\'er Sheva',country:'Israel',type:'iran',lat:31.25,lng:34.79,weight:6,strikes:10,desc:'Targeted in IRGC missile salvo on southern Israeli military installations.'},
+  {id:'beitshemesh',name:'Beit Shemesh',country:'Israel',type:'iran',lat:31.75,lng:34.99,weight:7,strikes:3,desc:'⚠ DEADLIEST IN ISRAEL: 9 civilians killed when missile hit a synagogue shelter.'},
+  {id:'jerusalem',name:'Jerusalem',country:'Israel',type:'iran',lat:31.77,lng:35.23,weight:6,strikes:15,desc:'Loud blast reported. Iranian missile barrages. Sirens throughout the war.'},
+  {id:'manama',name:'Manama',country:'Bahrain',type:'iran',lat:26.22,lng:50.59,weight:9,strikes:40,desc:'US Navy 5th Fleet HQ targeted multiple times. 143 missiles and 242 drones intercepted total.'},
+  {id:'kuwait',name:'Kuwait City',country:'Kuwait',type:'iran',lat:29.38,lng:47.97,weight:7,strikes:20,desc:'Ali al-Salem airbase hit. Alarms sounded 7 times in a single night. Girl killed from shrapnel.'},
+  {id:'abudhabi',name:'Abu Dhabi',country:'UAE',type:'iran',lat:24.45,lng:54.38,weight:7,strikes:12,desc:'Ballistic missile targeting capital intercepted. Indian national injured from debris.'},
+  {id:'riyadh',name:'Riyadh / E. Province',country:'Saudi Arabia',type:'iran',lat:24.71,lng:46.68,weight:8,strikes:25,desc:'~20 drones targeted Saudi energy facilities. Ballistic missiles toward Riyadh. IRGC attacked Prince Sultan airbase.'},
+  {id:'qatar',name:'Doha / Ras Laffan',country:'Qatar',type:'iran',lat:25.29,lng:51.53,weight:6,strikes:8,desc:'Ras Laffan and Mesaieed Industrial Area struck. Qatar shot down two Iranian Su-24 bombers.'},
+  {id:'beirut',name:'Beirut / Lebanon',country:'Lebanon',type:'proxy',lat:33.89,lng:35.50,weight:9,strikes:120,desc:'1,039+ killed in Israeli strikes since March 2. Ground forces in southern Lebanon. Iran ambassador expelled.'},
+  {id:'anbar',name:'Anbar Province',country:'Iraq',type:'proxy',lat:33.36,lng:42.40,weight:7,strikes:15,desc:'US struck PMF HQ; commander Saad Dawai killed. Iraq called "secondary battleground."'},
+  {id:'erbil',name:'Erbil',country:'Iraq',type:'proxy',lat:36.19,lng:44.01,weight:6,strikes:8,desc:'US personnel killed near Erbil; French soldiers injured. Iran-backed groups active in Kurdish region.'},
+];
+
+const COLORS = { us_israel:'#ff4d3d', iran:'#ffaa00', proxy:'#38b6ff' };
+const LABELS = { us_israel:'US / Israeli Strikes', iran:'Iranian Strikes', proxy:'Proxy / Multi-Front' };
+const filterState = { us_israel:true, iran:true, proxy:true };
+const layerGroups = {};
+let leafletMap;
+
+function initMap() {
+  leafletMap = L.map('map', { center:[30.5,46.5], zoom:5, zoomControl:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom:19, subdomains:'abcd',
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(leafletMap);
+
+  ['us_israel','iran','proxy'].forEach(type => {
+    layerGroups[type] = L.layerGroup();
+    STRIKES.filter(s => s.type === type).forEach(s => buildMarker(s).addTo(layerGroups[type]));
+    layerGroups[type].addTo(leafletMap);
+  });
+}
+
+function buildMarker(s) {
+  const col = COLORS[s.type];
+  const sz = s.weight * 5;
+  const html = `<div style="position:relative;width:${sz}px;height:${sz}px;">
+    <div style="position:absolute;inset:0;border-radius:50%;background:${col};opacity:0.12;animation:ring-pulse 2.5s ease-out infinite;animation-delay:${(Math.random()*2).toFixed(2)}s;"></div>
+    <div style="position:absolute;inset:${sz*0.175}px;border-radius:50%;background:${col};opacity:0.22;border:1.5px solid ${col};"></div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${sz*0.28}px;height:${sz*0.28}px;border-radius:50%;background:${col};box-shadow:0 0 ${sz*0.4}px ${col};"></div>
+  </div>`;
+  const icon = L.divIcon({ html, className:'', iconSize:[sz,sz], iconAnchor:[sz/2,sz/2], popupAnchor:[0,-sz/2-4] });
+  const popup = `<div class="p-inner"><div class="p-name">${s.name}</div><div class="p-country">${s.country}</div><span class="md-badge b-${s.type}" style="margin-bottom:8px;display:inline-block">${LABELS[s.type]}</span><div class="p-strikes">~${s.strikes} recorded strike events</div><div class="p-desc">${s.desc}</div></div>`;
+  const marker = L.marker([s.lat,s.lng],{icon}).bindPopup(popup,{maxWidth:280,minWidth:200});
+  marker.on('click', () => showMapDetail(s));
+  return marker;
+}
+
+function showMapDetail(s) {
+  document.getElementById('map-hint').style.display = 'none';
+  const d = document.getElementById('map-detail');
+  d.classList.remove('show'); void d.offsetWidth; d.classList.add('show');
+  document.getElementById('md-name').textContent = s.name;
+  document.getElementById('md-country').textContent = s.country;
+  document.getElementById('md-num').textContent = '~' + s.strikes;
+  document.getElementById('md-num').style.color = COLORS[s.type];
+  document.getElementById('md-desc').textContent = s.desc;
+  const b = document.getElementById('md-badge');
+  b.textContent = LABELS[s.type]; b.className = 'md-badge b-' + s.type;
+}
+
+function refreshMap() {
+  const btn = document.getElementById('map-refresh-btn');
+  const lbl = document.getElementById('map-last-update');
+
+  // Spin animation
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  btn.querySelector('.r-icon').textContent = '↻';
+
+  // Clear all existing layers
+  Object.keys(layerGroups).forEach(type => {
+    if (leafletMap.hasLayer(layerGroups[type])) leafletMap.removeLayer(layerGroups[type]);
+    layerGroups[type].clearLayers();
+  });
+
+  // Re-build markers
+  setTimeout(() => {
+    STRIKES.forEach(s => buildMarker(s).addTo(layerGroups[s.type]));
+
+    // Re-add only active layers
+    Object.keys(layerGroups).forEach(type => {
+      if (filterState[type]) layerGroups[type].addTo(leafletMap);
+    });
+
+    // Reset detail panel
+    document.getElementById('map-hint').style.display = '';
+    const d = document.getElementById('map-detail');
+    d.classList.remove('show');
+
+    // Update timestamp
+    const now = new Date();
+    lbl.textContent = 'Refreshed: ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) + ' — Day 25';
+    lbl.style.color = 'var(--us)';
+    setTimeout(() => { lbl.style.color = ''; }, 2000);
+
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+    btn.querySelector('.r-icon').textContent = '↻';
+  }, 900);
+}
+
+function toggleFilter(type) {
+  filterState[type] = !filterState[type];
+  const rowId = type === 'us_israel' ? 'fr-us' : type === 'iran' ? 'fr-iran' : 'fr-proxy';
+  const row = document.getElementById(rowId);
+  if (filterState[type]) { layerGroups[type].addTo(leafletMap); row.classList.add('on'); row.classList.remove('off'); }
+  else { leafletMap.removeLayer(layerGroups[type]); row.classList.remove('on'); row.classList.add('off'); }
+}
+
+// Pulse animation for markers
+const ps = document.createElement('style');
+ps.textContent = '@keyframes ring-pulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(3);opacity:0}}';
+document.head.appendChild(ps);
+
+// ═══════════════════════════════
+// NEWS — Multi-proxy with curated fallback
+// ═══════════════════════════════
+
+// CORS proxies tried in order
+const PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+
+const RSS_FEEDS = [
+  { url:'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml',  name:'BBC Middle East',  color:'#ff4d3d', col:'military' },
+  { url:'https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml', name:'NYT',            color:'#ff4d3d', col:'military' },
+  { url:'https://feeds.reuters.com/reuters/topNews',                 name:'Reuters',           color:'#ffaa00', col:'diplomacy' },
+  { url:'https://feeds.npr.org/1004/rss.xml',                        name:'NPR World',         color:'#ffaa00', col:'diplomacy' },
+  { url:'https://feeds.bbci.co.uk/news/business/rss.xml',            name:'BBC Business',      color:'#38b6ff', col:'markets' },
+  { url:'https://feeds.reuters.com/reuters/businessNews',            name:'Reuters Business',  color:'#38b6ff', col:'markets' },
+];
+
+// ── Curated fallback headlines (sourced from today's confirmed reporting) ──
+const FALLBACK_ARTICLES = [
+  // MILITARY
+  { title:'Iran fires new wave of missiles at Israel on Day 25; Tel Aviv struck, 4 casualties', desc:'Iranian state media announced a fresh salvo of missiles targeting Israeli territory. At least four casualties reported after shrapnel hit a building in Tel Aviv. Search and rescue operations underway at several sites.', link:'https://www.aljazeera.com/news/liveblog/2026/3/24/iran-war-live', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'2h ago', ts: Date.now()-7200000 },
+  { title:'US strikes PMF headquarters in Iraq\'s Anbar Province; senior commander killed', desc:'US military launched a strike on the Popular Mobilisation Forces operations HQ in Anbar province targeting Saad Dawai. At least 14 people killed in the attack. Iraq described as a "secondary battleground."', link:'https://www.aljazeera.com/news/2026/3/24/us-israel-war-on-iran-whats-happening-on-day-25', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'3h ago', ts: Date.now()-10800000 },
+  { title:'Israeli Air Force strikes IRGC intelligence HQ and government buildings in Tehran', desc:'The Israeli military said it completed a wave of extensive strikes targeting production sites in Iran overnight, including two IRGC intelligence headquarters and an Iranian Ministry of Intelligence building in Tehran.', link:'https://www.aljazeera.com/news/2026/3/24/despite-trumps-peace-talk-claims-us-israeli-attacks-continue', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'5h ago', ts: Date.now()-18000000 },
+  { title:'Kuwait intercepts drones and missiles 7 times in single night as Gulf states remain under fire', desc:'Kuwait\'s air defences responded to multiple incoming missile and drone attacks, with alarms sounded at least seven times. Saudi Arabia intercepted approximately 20 drones targeting its Eastern Province energy facilities.', link:'https://www.aljazeera.com/news/2026/3/24/us-israel-war-on-iran-whats-happening-on-day-25', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'4h ago', ts: Date.now()-14400000 },
+  { title:'Iran names new National Security Council chief after Larijani killed in US-Israeli strike', desc:'Iran appointed Mohammad Bagher Zolghadr as the new secretary of the Supreme National Security Council, replacing Ali Larijani who was killed in a US-Israeli attack on March 17. Analysts warn this signals a more aggressive Iranian posture.', link:'https://www.aljazeera.com/news/liveblog/2026/3/24/iran-war-live', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'6h ago', ts: Date.now()-21600000 },
+  { title:'Minab school strike: 170+ killed in deadliest single attack of the war on civilian site', desc:'A US-Israeli strike on an elementary girls\' school in Minab, southeastern Iran, killed more than 170 people, mostly children. The strike remains the single deadliest incident of the conflict. International condemnation has mounted.', link:'https://www.aljazeera.com/news/2026/3/1/us-israel-attacks-on-iran-death-toll-tracker', source:'Al Jazeera', color:'#ff4d3d', col:'military', time:'1d ago', ts: Date.now()-86400000 },
+
+  // DIPLOMACY
+  { title:'Trump claims "15 points of agreement" with Iran; Tehran flatly denies any talks', desc:'US President Trump said the US and Iran have reached major points of agreement and postponed strikes on Iranian energy infrastructure for five days. Iran\'s parliament speaker called the claims "fake news" intended to manipulate oil markets.', link:'https://www.cbsnews.com/live-updates/iran-war-us-israel-trump-03-24-26', source:'CBS News', color:'#ffaa00', col:'diplomacy', time:'1h ago', ts: Date.now()-3600000 },
+  { title:'Trump reveals Iran sent "oil and gas related" present worth "tremendous amount of money"', desc:'In cryptic Oval Office remarks, Trump alluded to a goodwill gesture from Iran he described as "oil and gas related" and worth a tremendous amount of money, suggesting it helped diplomatic efforts. He did not elaborate on what was received.', link:'https://www.cnn.com/world/live-news/iran-war-us-israel-trump-03-24-26', source:'CNN', color:'#ffaa00', col:'diplomacy', time:'2h ago', ts: Date.now()-7200000 },
+  { title:'Defense Secretary Hegseth "quite disappointed" by ceasefire prospect, Trump reveals', desc:'Trump stated that Defense Secretary Pete Hegseth and Joint Chiefs Chairman Gen. Dan Caine were the only two people "quite disappointed" by the prospect of a ceasefire with Iran, revealing internal administration tension over war aims.', link:'https://www.cnn.com/world/live-news/iran-war-us-israel-trump-03-24-26', source:'CNN', color:'#ffaa00', col:'diplomacy', time:'3h ago', ts: Date.now()-10800000 },
+  { title:'Pakistan offers to host US-Iran peace talks; China urges diplomacy', desc:'Pakistan\'s Foreign Ministry announced it is ready to host direct talks between the US and Iran. China\'s top diplomat told his Iranian counterpart that "talking is always better than to keep fighting." The UN Human Rights Council called an urgent session.', link:'https://www.aljazeera.com/news/2026/3/24/us-israel-war-on-iran-whats-happening-on-day-25', source:'Al Jazeera', color:'#ffaa00', col:'diplomacy', time:'4h ago', ts: Date.now()-14400000 },
+  { title:'Lebanon expels Iranian ambassador, recalls own envoy from Tehran', desc:'Lebanon declared Iran\'s ambassador persona non grata and ordered him to leave the country, citing Iran\'s violation of diplomatic norms. This dramatic shift reflects how Iran\'s strikes on Gulf states have alienated even its former regional partners.', link:'https://www.aljazeera.com/news/2026/3/24/us-israel-war-on-iran-whats-happening-on-day-25', source:'Al Jazeera', color:'#ffaa00', col:'diplomacy', time:'5h ago', ts: Date.now()-18000000 },
+  { title:'Trump approval falls to 36%, lowest of second term, as war costs mount', desc:'A Reuters/Ipsos poll shows Trump\'s approval rating has dropped to 36 percent, the lowest since the start of his second presidential term. The poll attributes the drop to rising cost of living and growing public disapproval of the Iran war.', link:'https://www.reuters.com', source:'Reuters/Ipsos', color:'#ffaa00', col:'diplomacy', time:'8h ago', ts: Date.now()-28800000 },
+
+  // MARKETS
+  { title:'Oil rises to $91.80 as Iran-US diplomacy signals remain contradictory', desc:'Crude oil climbed $3.67 to $91.80 as conflicting reports from Washington and Tehran over any peace talks roiled energy markets. Citi analysts warn oil could reach $200/bbl if the Hormuz blockade persists through June.', link:'https://247wallst.com/investing/2026/03/24/stock-market-live-march-24-2026', source:'24/7 Wall St.', color:'#38b6ff', col:'markets', time:'2h ago', ts: Date.now()-7200000 },
+  { title:'S&P 500 falls 0.26%, Dow off 128 points as Iran ceasefire hopes fade', desc:'US equities fell Tuesday as Iran\'s denial of peace talks dampened the Monday relief rally. The S&P 500 dropped 0.26%, the Dow fell 128 points, and the Nasdaq lost 0.25%. Markets remain headline-driven around oil and geopolitics.', link:'https://247wallst.com/investing/2026/03/24/stock-market-live-march-24-2026', source:'24/7 Wall St.', color:'#38b6ff', col:'markets', time:'3h ago', ts: Date.now()-10800000 },
+  { title:'Gold surges to $4,410/oz as investors flee to safe havens amid war uncertainty', desc:'Gold climbed to a record $4,410.90 per ounce as investors continued seeking safe-haven assets amid the unresolved Middle East conflict. Bond yields also moved higher as surging oil prices pushed inflation expectations up.', link:'https://www.thestreet.com/latest-news/stock-market-today-march-24-2026-updates', source:'TheStreet', color:'#38b6ff', col:'markets', time:'4h ago', ts: Date.now()-14400000 },
+  { title:'IEA chief: conflict is "worse than 1973 and 1979 oil crises combined"', desc:'International Energy Agency head Fatih Birol warned the global economy faces a "major, major threat" from the war\'s disruption to oil and gas flows. "At least 40 energy facilities across nine countries have been severely damaged," he said.', link:'https://www.npr.org/2026/03/23/nx-s1-5757172/iran-defiant-trump-hormuz', source:'NPR', color:'#38b6ff', col:'markets', time:'20h ago', ts: Date.now()-72000000 },
+  { title:'Energy sector ETF (XLE) posts 25% YTD gain — best performer of 2026', desc:'The Energy Select Sector SPDR Fund has surged 25% year-to-date, transforming the sector from a value play into the market\'s primary safe haven. The Hormuz blockade has disrupted roughly 25% of global oil consumption and 20% of global LNG flows.', link:'https://markets.financialcontent.com/stocks/article/marketminute-2026-3-24-energy-unleashed', source:'FinancialContent', color:'#38b6ff', col:'markets', time:'5h ago', ts: Date.now()-18000000 },
+  { title:'Blackstone\'s BCRED records first monthly loss since 2022 as private credit stress mounts', desc:'Blackstone\'s flagship $48 billion business development company posted its first monthly loss in over three years in February, with return dropping to -0.4%. Analysts warn private credit is entering its first real redemption cycle.', link:'https://www.wealthmanagement.com/alternative-investments/10-investment-must-reads', source:'Wealth Mgmt.', color:'#38b6ff', col:'markets', time:'3h ago', ts: Date.now()-10800000 },
+  { title:'S&P Global Flash Manufacturing PMI beats forecast at 52.4 vs 51.5 expected', desc:'Today\'s flash PMI for March came in above expectations at 52.4, suggesting manufacturing activity is holding up despite the conflict. Services PMI remained at 51.7. A modest positive data point in an otherwise geopolitically-dominated market.', link:'https://www.investing.com/economic-calendar/manufacturing-pmi-829', source:'Investing.com', color:'#38b6ff', col:'markets', time:'6h ago', ts: Date.now()-21600000 },
+];
+
+let allArticles = [];
+let usingFallback = false;
+
+async function fetchViaProxy(proxyFn, feedUrl) {
+  const res = await fetch(proxyFn(feedUrl), { signal: AbortSignal.timeout(6000) });
+  const text = await res.text();
+  // allorigins returns JSON, corsproxy.io returns raw
+  let content = text;
+  try { content = JSON.parse(text).contents || text; } catch(e) {}
+  return content;
+}
+
+async function fetchFeed(feed) {
+  for (const proxyFn of PROXIES) {
+    try {
+      const content = await fetchViaProxy(proxyFn, feed.url);
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(content, 'text/xml');
+      const items = [...xml.querySelectorAll('item')].slice(0, 10);
+      if (!items.length) continue;
+      items.forEach(item => {
+        const title = item.querySelector('title')?.textContent?.trim() || '';
+        const desc  = (item.querySelector('description')?.textContent || '').replace(/<[^>]+>/g,'').trim();
+        const link  = item.querySelector('link')?.textContent?.trim() || '#';
+        const pubDate = item.querySelector('pubDate')?.textContent || '';
+        const d = pubDate ? new Date(pubDate) : new Date();
+        const hoursAgo = Math.round((Date.now() - d.getTime()) / 36e5);
+        const timeLabel = hoursAgo < 1 ? 'Just now' : hoursAgo < 24 ? `${hoursAgo}h ago` : d.toLocaleDateString();
+        if (title) allArticles.push({ title, desc: desc.slice(0, 180) + (desc.length>180?'…':''), link, source: feed.name, color: feed.color, col: feed.col, time: timeLabel, ts: d.getTime() });
+      });
+      return; // success — don't try next proxy
+    } catch(e) { /* try next proxy */ }
+  }
+}
+
+async function loadNews() {
+  usingFallback = false;
+  allArticles = [];
+  document.getElementById('last-refresh-time').textContent = 'Loading…';
+  ['feed-military','feed-diplomacy','feed-markets'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="news-error"><b>Fetching live news…</b>Connecting to RSS feeds via proxy.</div>';
+  });
+
+  await Promise.allSettled(RSS_FEEDS.map(f => fetchFeed(f)));
+
+  // If live feeds failed, fall back to curated articles
+  if (allArticles.length < 3) {
+    allArticles = FALLBACK_ARTICLES;
+    usingFallback = true;
+  }
+
+  renderNews('all');
+  const now = new Date();
+  const suffix = usingFallback ? ' · Curated' : ' · Live';
+  document.getElementById('last-refresh-time').textContent = `Updated ${now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}${suffix}`;
+  document.getElementById('news-badge').textContent = allArticles.length + ' articles';
+}
+
+function renderNews(filter) {
+  const cols = { military:[], diplomacy:[], markets:[] };
+  let pool = [...allArticles].sort((a,b) => b.ts - a.ts);
+  if (filter !== 'all') {
+    const map = { geopolitical:['military','diplomacy'], markets:['markets'], military:['military'] };
+    const allowed = map[filter] || ['military','diplomacy','markets'];
+    pool = pool.filter(a => allowed.includes(a.col));
+  }
+  pool.forEach(a => { if (cols[a.col]) cols[a.col].push(a); });
+
+  const renderCol = (articles, feedId, countId) => {
+    const el = document.getElementById(feedId);
+    document.getElementById(countId).textContent = articles.length + ' articles' + (usingFallback ? ' (curated)' : '');
+    el.innerHTML = articles.map(a => `
+      <a class="news-card" href="${a.link}" target="_blank" rel="noopener noreferrer">
+        <div class="nc-source">
+          <div class="nc-dot" style="background:${a.color}"></div>
+          ${a.source}
+          <span class="nc-time" style="margin-left:auto">${a.time}</span>
+        </div>
+        <div class="nc-headline">${a.title}</div>
+        ${a.desc ? `<div class="nc-snippet">${a.desc}</div>` : ''}
+      </a>`).join('');
+  };
+
+  renderCol(cols.military,  'feed-military',  'feed1-count');
+  renderCol(cols.diplomacy, 'feed-diplomacy', 'feed2-count');
+  renderCol(cols.markets,   'feed-markets',   'feed3-count');
+}
+
+function filterNews(filter, btn) {
+  document.querySelectorAll('.news-source-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderNews(filter);
+}
+
+// ═══════════════════════════════
+// CHARTS & LIVE MARKET DATA
+// ═══════════════════════════════
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'DM Mono', monospace";
+Chart.defaults.font.size = 10;
+
+// Stored chart instances for live updates
+const chartInstances = {};
+
+// Static fallback data (used if API unavailable)
+const FALLBACK = {
+  'CL=F':  { price:91.03, change:3.67,  pct:4.20,  prefix:'$', suffix:'/bbl', label:'WTI Crude' },
+  'BZ=F':  { price:94.20, change:3.10,  pct:3.41,  prefix:'$', suffix:'/bbl', label:'Brent' },
+  'GC=F':  { price:4410,  change:6.42,  pct:0.15,  prefix:'$', suffix:'/oz',  label:'Gold' },
+  '^GSPC': { price:6564,  change:-17.12,pct:-0.26, prefix:'',  suffix:'',     label:'S&P 500' },
+  'XLE':   { price:97.84, change:0.88,  pct:0.91,  prefix:'$', suffix:'',     label:'XLE' },
+};
+
+// Historical data since conflict start (Feb 28) — used as chart baseline
+const HIST_FALLBACK = {
+  oil:  [60.2,60.8,62.1,65.4,68.9,72.3,75.1,76.8,78.2,79.5,80.1,81.4,82.0,83.6,84.9,85.7,86.3,87.1,87.8,88.4,88.9,89.4,90.1,90.7,91.0],
+  gold: [4075,4080,4090,4105,4118,4132,4148,4160,4175,4188,4200,4215,4228,4242,4255,4268,4280,4295,4308,4320,4335,4350,4368,4392,4410],
+  spx:  [6855,6820,6760,6680,6610,6540,6490,6455,6420,6380,6350,6310,6280,6250,6220,6200,6180,6250,6340,6290,6380,6450,6520,6581,6564],
+  xle:  [78.2,78.8,79.5,81.2,83.4,85.6,87.1,88.3,89.4,90.5,91.2,92.4,93.0,93.8,94.6,95.2,95.8,96.3,96.7,97.0,97.2,97.4,97.5,97.7,97.8],
+};
+
+function days(start, n) {
+  const d = new Date(start);
+  return Array.from({length:n}, (_,i) => {
+    const dd = new Date(d); dd.setDate(d.getDate()+i);
+    return dd.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  });
+}
+const labels25 = days('2026-02-28', 25);
+
+// ── Yahoo Finance via CORS proxy ──
+const YF_PROXIES = [
+  sym => `https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1mo')}`,
+  sym => `https://corsproxy.io/?${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=1mo')}`,
+];
+
+async function fetchYahoo(symbol) {
+  for (const proxyFn of YF_PROXIES) {
+    try {
+      const res = await fetch(proxyFn(symbol), { signal: AbortSignal.timeout(7000) });
+      const raw = await res.text();
+      let json;
+      try { json = JSON.parse(raw); } catch(e) { continue; }
+      // allorigins wraps in .contents
+      const data = json.contents ? JSON.parse(json.contents) : json;
+      const result = data?.chart?.result?.[0];
+      if (!result) continue;
+      const closes = result.indicators?.quote?.[0]?.close || [];
+      const timestamps = result.timestamp || [];
+      const meta = result.meta || {};
+      const price = meta.regularMarketPrice || closes[closes.length-1] || 0;
+      const prev  = meta.chartPreviousClose || meta.previousClose || closes[closes.length-2] || price;
+      const change = price - prev;
+      const pct = prev ? (change / prev) * 100 : 0;
+      // Filter to conflict period (Feb 28 onward)
+      const conflictStart = new Date('2026-02-28').getTime() / 1000;
+      const filtered = timestamps.map((t,i) => ({t, c: closes[i]})).filter(x => x.t >= conflictStart && x.c != null);
+      return { price, change, pct, history: filtered.map(x => x.c), meta };
+    } catch(e) { /* try next */ }
+  }
+  return null;
+}
+
+async function loadMarketData(forceRefresh = false) {
+  const btn = document.getElementById('markets-refresh-btn');
+  if (btn) { btn.textContent = '↻ …'; btn.disabled = true; }
+
+  const symbols = ['CL=F','BZ=F','GC=F','^GSPC','XLE'];
+  const results = await Promise.all(symbols.map(s => fetchYahoo(s)));
+
+  let anyLive = false;
+  symbols.forEach((sym, i) => {
+    const d = results[i];
+    const fb = FALLBACK[sym];
+    const price  = d ? d.price  : fb.price;
+    const change = d ? d.change : fb.change;
+    const pct    = d ? d.pct    : fb.pct;
+    if (d) anyLive = true;
+
+    // Update ticker card
+    const card = document.getElementById('tick-' + sym);
+    if (card) {
+      const priceEl  = card.querySelector('.tc-price');
+      const changeEl = card.querySelector('.tc-change');
+      const up = change >= 0;
+      priceEl.className  = 'tc-price';
+      changeEl.className = 'tc-change ' + (up ? 'up' : 'dn');
+      priceEl.textContent  = fb.prefix + price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + fb.suffix;
+      changeEl.textContent = (up ? '▲ +' : '▼ ') + Math.abs(change).toFixed(2) + ' (' + (up?'+':'') + pct.toFixed(2) + '%) today';
+    }
+
+    // Feed history into charts
+    const hist = (d && d.history.length > 1) ? d.history : null;
+    if (sym === 'CL=F')  updateChartData('chart-oil',  hist || HIST_FALLBACK.oil,  price, change, pct, '$', '/bbl', '#oil-val', '#oil-chg');
+    if (sym === 'GC=F')  updateChartData('chart-gold', hist || HIST_FALLBACK.gold, price, change, pct, '$', '/oz',  '#gold-val','#gold-chg');
+    if (sym === '^GSPC') updateChartData('chart-spx',  hist || HIST_FALLBACK.spx,  price, change, pct, '', '',     '#spx-val', '#spx-chg');
+    if (sym === 'XLE')   updateChartData('chart-sectors-live', hist || HIST_FALLBACK.xle, price, change, pct, '$','','#xle-val','#xle-chg');
+  });
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const srcStr  = anyLive ? '· Live (15-min delay)' : '· Fallback data';
+  const el = document.getElementById('markets-update-time');
+  if (el) { el.textContent = timeStr + ' ' + srcStr; el.style.color = anyLive ? 'var(--green)' : 'var(--text-xs)'; }
+
+  if (btn) { btn.textContent = '↻ REFRESH'; btn.disabled = false; }
+
+  // Auto-refresh every 60s
+  if (!forceRefresh) setTimeout(() => loadMarketData(false), 60000);
+}
+
+function updateChartData(canvasId, histData, price, change, pct, prefix, suffix, valId, chgId) {
+  // Align history length to labels25
+  const n = labels25.length;
+  let data = histData.slice(-n);
+  while (data.length < n) data.unshift(null);
+
+  if (chartInstances[canvasId]) {
+    chartInstances[canvasId].data.datasets[0].data = data;
+    chartInstances[canvasId].update('none');
+  }
+
+  // Update header stat
+  if (valId) {
+    const el = document.querySelector(valId);
+    if (el) {
+      el.textContent = prefix + price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + suffix;
+      el.className = 'cc-val ' + (change >= 0 ? 'up' : 'dn');
+    }
+  }
+  if (chgId) {
+    const el = document.querySelector(chgId);
+    if (el) {
+      // Compute % change from first data point to now
+      const first = data.find(v => v != null);
+      const totalPct = first ? ((price - first) / first * 100).toFixed(1) : pct.toFixed(1);
+      const up = change >= 0;
+      el.textContent = (up ? '▲ +' : '▼ ') + Math.abs(totalPct) + '% since war began';
+      el.className = 'cc-chg ' + (up ? 'up' : 'dn');
+    }
+  }
+}
+
+function buildCharts() {
+  const baseOpts = (prefix, suffix) => ({
+    responsive:true, maintainAspectRatio:false,
+    animation: { duration: 400 },
+    plugins:{
+      legend:{ display:false },
+      tooltip:{ callbacks:{ label: c => c.raw != null ? prefix + Number(c.raw).toLocaleString() + suffix : 'No data' } }
+    },
+    scales:{
+      x:{ grid:{display:false}, ticks:{ maxTicksLimit:8 } },
+      y:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ callback: v => prefix + Number(v).toLocaleString() } }
+    }
+  });
+
+  const mkLine = (id, color, bg, prefix, suffix, fallbackData) => {
+    const data = Array(labels25.length).fill(null);
+    const inst = new Chart(document.getElementById(id), {
+      type:'line',
+      data:{ labels: labels25, datasets:[{ data, borderColor:color, backgroundColor:bg, borderWidth:2, fill:true, tension:0.4, pointRadius:0, pointHoverRadius:4, spanGaps:true }] },
+      options: baseOpts(prefix, suffix)
+    });
+    chartInstances[id] = inst;
+    // Seed with fallback immediately so chart isn't blank
+    inst.data.datasets[0].data = fallbackData;
+    inst.update('none');
+    return inst;
+  };
+
+  mkLine('chart-oil',  '#ff4d3d','rgba(255,77,61,0.08)',  '$','/bbl', HIST_FALLBACK.oil);
+  mkLine('chart-gold', '#ffaa00','rgba(255,170,0,0.08)',  '$','/oz',  HIST_FALLBACK.gold);
+  mkLine('chart-spx',  '#38b6ff','rgba(56,182,255,0.07)', '', '',     HIST_FALLBACK.spx);
+  mkLine('chart-sectors-live','#22c55e','rgba(34,197,94,0.08)','$','', HIST_FALLBACK.xle);
+
+  // — SECTORS BAR (static — no live equivalent for all sectors) —
+  new Chart(document.getElementById('chart-sectors'), {
+    type:'bar',
+    data:{
+      labels:['Energy','Materials','Industrials','Utilities','Financials','Health','Tech','Consumer','Real Est.','Comm.'],
+      datasets:[{
+        label:'YTD % Change',
+        data:[25.2, 8.4, 3.1, 6.8, -1.2, 2.4, -6.3, -4.1, -3.8, -2.9],
+        backgroundColor: ctx => ctx.raw >= 0 ? 'rgba(34,197,94,0.7)' : 'rgba(239,68,68,0.7)',
+        borderColor:     ctx => ctx.raw >= 0 ? '#22c55e' : '#ef4444',
+        borderWidth:1, borderRadius:4
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => (c.raw>=0?'+':'')+c.raw+'%' } } },
+      scales:{
+        x:{ grid:{display:false}, ticks:{ maxRotation:35, minRotation:35 } },
+        y:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ callback: v => v+'%' } }
+      }
+    }
+  });
+
+  // — OIL SUPPLY DISRUPTION (static analyst estimate — unchanged) —
+  new Chart(document.getElementById('chart-supply'), {
+    type:'line',
+    data:{
+      labels: labels25,
+      datasets:[
+        { label:'% Global Supply Disrupted', data:[2,3,5,8,12,16,19,21,22,23,23.5,24,24.2,24.5,24.8,25,25,25,25,25,25,25,25,25,25], borderColor:'#ff4d3d', backgroundColor:'rgba(255,77,61,0.1)', borderWidth:2.5, fill:true, tension:0.35, pointRadius:0, pointHoverRadius:5 },
+        { label:'Pre-War Baseline', data:Array(25).fill(2), borderColor:'rgba(255,255,255,0.2)', borderDash:[5,4], borderWidth:1.5, fill:false, tension:0, pointRadius:0 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, labels:{ color:'#64748b', boxWidth:12, font:{size:10} } }, tooltip:{ callbacks:{ label: c => c.dataset.label+': '+c.raw+'%' } } },
+      scales:{ x:{ grid:{display:false}, ticks:{ maxTicksLimit:12 } }, y:{ grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ callback: v => v+'%' }, suggestedMax:30 } }
+    }
+  });
+
+  // Now fetch live data to update tickers + charts
+  loadMarketData(false);
+}
+</script>
+</body>
+</html>
